@@ -71,42 +71,46 @@ menu_categories = {
     "tofu_based": ["tofu jjigae", "soondubu jjigae", "beef soondubu jjigae", "pork soondubu jjigae"]
 }
 
-# ========= DATA LOADING =========
+menu_aliases = {
+    "soondubu": "soondubu jjigae",
+    "suundobu": "soondubu jjigae",
+    "beef soondubu": "beef soondubu jjigae",
+    "pork soondubu": "pork soondubu jjigae",
+    "soondubu jigae": "soondubu jjigae"
+}
+
+# ========= LOADERS =========
 @st.cache_data
 def load_data():
     if not os.path.exists("review_sentiment.csv"):
         st.error("❌ 'review_sentiment.csv' not found.")
         return None
-    df = pd.read_csv("review_sentiment.csv")
-    df = df[df["sentiment"] == "positive"]
+    try:
+        df = pd.read_csv("review_sentiment.csv")
+        
+        # Mengganti menu yang salah ketik sesuai dengan aliases yang ada
+        df["menu"] = df["menu"].str.lower().replace(menu_aliases)
 
-    # Apply alias corrections to 'menu' column using menu_aliases dictionary
-    def correct_menu_name(menu_name):
-        # Loop through the menu_aliases and replace the names based on the alias mapping
-        for key, value in menu_aliases.items():
-            if key in menu_name:
-                menu_name = menu_name.replace(key, value)
-        return menu_name
+        # Menyaring review dengan sentiment positif
+        df = df[df["sentiment"] == "positive"]
 
-    # Apply the function to the 'menu' column
-    df["menu"] = df["menu"].str.lower().apply(correct_menu_name)
+        # Menghitung statistik menu
+        menu_stats = df.groupby("menu").agg(
+            count=("menu", "count"),
+            avg_sentiment=("compound_score", "mean")
+        ).reset_index()
 
-    menu_stats = df.groupby("menu").agg(
-        count=("menu", "count"),
-        avg_sentiment=("compound_score", "mean")
-    ).reset_index()
-
-    scaler = MinMaxScaler()
-    menu_stats[["count_norm", "sentiment_norm"]] = scaler.fit_transform(
-        menu_stats[["count", "avg_sentiment"]]
-    )
-    menu_stats["score"] = (menu_stats["count_norm"] + menu_stats["sentiment_norm"]) / 2
-
-    unknown_menus = set(menu_stats["menu"]) - set(menu_actual)
-    if unknown_menus:
-        st.warning(f"⚠️ Ada menu yang tidak dikenali: {unknown_menus}")
-
-    return menu_stats
+        # Normalisasi dan perhitungan skor menu
+        scaler = MinMaxScaler()
+        menu_stats[["count_norm", "sentiment_norm"]] = scaler.fit_transform(
+            menu_stats[["count", "avg_sentiment"]]
+        )
+        menu_stats["score"] = (menu_stats["count_norm"] + menu_stats["sentiment_norm"]) / 2
+        
+        return menu_stats
+    except Exception as e:
+        st.error(f"❌ Error loading data: {e}")
+        return None
 
 menu_stats = load_data()
 if menu_stats is None:
@@ -115,22 +119,18 @@ if menu_stats is None:
 # ========= MODEL LOADER =========
 @st.cache_resource
 def load_model_and_tokenizer():
-    # Memuat tokenizer
-    tokenizer = DistilBertTokenizer.from_pretrained(TOKENIZER_PATH)
-    
     # Memuat model CNN-BLSTM yang sudah dilatih
     sentiment_model = load_model(CNN_BLSTM_MODEL_PATH)
     
-    return tokenizer, sentiment_model
+    return sentiment_model
 
-# Load model dan tokenizer
-tokenizer, sentiment_model = load_model_and_tokenizer()
+# Load model
+sentiment_model = load_model_and_tokenizer()
 
 st.success("✅ All models and tokenizer loaded successfully!")
 
-
 # ========= PREDICTION =========
-def predict_sentiment(text, tokenizer, sentiment_model):
+def predict_sentiment(text, sentiment_model):
     inputs = tokenizer(text, return_tensors="tf", truncation=True, padding="max_length", max_length=MAX_LEN)
     preds = sentiment_model.predict(inputs['input_ids'], verbose=0)
     return int(preds[0][0] > 0.5)
@@ -192,56 +192,15 @@ if submitted and user_input:
     elif matched_menu and explicit_negative:
         is_negative = True
     elif matched_menu:
-        sentiment_pred = predict_sentiment(corrected_input, tokenizer, sentiment_model)
+        sentiment_pred = predict_sentiment(corrected_input, sentiment_model)
         is_negative = sentiment_pred == 0
     elif category and not explicit_negative and is_category_input:
         is_negative = False
     elif category and explicit_negative:
         is_negative = True
     else:
-        sentiment_pred = predict_sentiment(corrected_input, tokenizer, sentiment_model)
+        sentiment_pred = predict_sentiment(corrected_input, sentiment_model)
         is_negative = sentiment_pred == 0
 
     show_mood = any(word in raw_input for word in ["love", "like", "want", "enjoy"]) and not is_negative
-    sentiment_note = "😊 Awesome! You're in a good mood! " if show_mood else "😕 No worries! I got you. " if is_negative else ""
-
-    recommended = None
-    if matched_menu:
-        matched_menu = matched_menu.strip().lower()
-        if is_negative:
-            recommended = menu_stats[menu_stats["menu"] != matched_menu].sort_values("score", ascending=False).head(3)
-            response = sentiment_note + f"Oops! You don't like <strong>{matched_menu.title()}</strong>? Try these instead:"
-        elif matched_menu in menu_stats["menu"].values:
-            row = menu_stats[menu_stats["menu"] == matched_menu].iloc[0]
-            response = sentiment_note + f"🍽️ <strong>{matched_menu.title()}</strong> has <strong>{row['count']} reviews</strong> with average sentiment <strong>{row['avg_sentiment']:.2f}</strong>. Recommended! 🎉"
-        elif matched_menu in menu_actual:
-            response = f"🍽️ <strong>{matched_menu.title()}</strong> is on our menu! 🎉"
-        else:
-            recommended = menu_stats.sort_values("score", ascending=False).head(3)
-            response = sentiment_note + "❌ Not sure about that menu. Here are our top 3 picks!"
-    elif category and not matched_menu:
-        matched = menu_categories.get(category, [])
-        if is_negative:
-            recommended = menu_stats[~menu_stats["menu"].isin(matched)].sort_values("score", ascending=False).head(3)
-            response = f"🙅‍♂️ Avoiding <strong>{category.replace('_', ' ').title()}</strong>? Here are other ideas:"
-        else:
-            recommended = menu_stats[menu_stats["menu"].isin(matched)].sort_values("score", ascending=False).head(3)
-            response = sentiment_note + f"🔥 You might like these <strong>{category.replace('_', ' ').title()}</strong> dishes:"
-    else:
-        recommended = menu_stats.sort_values("score", ascending=False).head(3)
-        response = sentiment_note + "🤔 Couldn't find what you're looking for. Here's our top 3!"
-
-    if recommended is not None:
-        response += "<table><thead><tr><th>Rank</th><th>Menu</th><th>Sentiment</th><th>Reviews</th></tr></thead><tbody>"
-        for idx, (_, row) in enumerate(recommended.iterrows(), 1):
-            response += f"<tr style='text-align:center;'><td>{idx}</td><td>{row['menu'].title()}</td><td>{row['avg_sentiment']:.2f}</td><td>{int(row['count'])}</td></tr>"
-        response += "</tbody></table>"
-
-    st.session_state.chat_history.append(("user", user_input))
-    st.session_state.chat_history.append(("bot", response))
-
-    for role, msg in st.session_state.chat_history:
-        if role == "user":
-            st.markdown(f"**You:** {msg}")
-        else:
-            st.markdown(msg, unsafe_allow_html=True)
+    sentiment_note = "😊 Awesome! You're
