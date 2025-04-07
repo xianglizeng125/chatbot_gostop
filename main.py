@@ -14,7 +14,6 @@ import json
 st.set_page_config(page_title="GoStop BBQ Recommender", layout="centered")
 
 # ========= PATH SETUP =========
-MODEL_PATH = "t5_model.keras"
 CNN_BLSTM_MODEL_PATH = "distilbert_cnn_blstm_model.keras"
 TOKENIZER_PATH = "distilbert_model/tokenizer"
 # ========= CONFIG =========
@@ -132,7 +131,8 @@ def load_bert_model_and_tokenizer():
     from tensorflow.keras.models import Model
 
     tokenizer = DistilBertTokenizer.from_pretrained(TOKENIZER_PATH)
-    bert = TFDistilBertModel.from_pretrained("distilbert-base-uncased")
+    bert = TFDistilBertModel.from_pretrained(TOKENIZER_PATH, from_pt=False)
+
     bert.trainable = False
 
     bert_out_input = Input(shape=(MAX_LEN, 768), name="bert_output")
