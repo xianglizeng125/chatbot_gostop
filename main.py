@@ -23,12 +23,22 @@ def download_and_load_assets():
     if not os.path.exists(EXTRACT_PATH):
         with st.spinner("📥 Downloading model & tokenizer..."):
             url = f"https://drive.google.com/uc?id={GOOGLE_DRIVE_ZIP_ID}"
-            gdown.download(url, ZIP_PATH, quiet=False)
-            with zipfile.ZipFile(ZIP_PATH, "r") as zip_ref:
-                zip_ref.extractall(EXTRACT_PATH)
+            try:
+                gdown.download(url, ZIP_PATH, quiet=False)
+                with zipfile.ZipFile(ZIP_PATH, "r") as zip_ref:
+                    zip_ref.extractall(EXTRACT_PATH)
+            except Exception as e:
+                st.error(f"❌ Error downloading or extracting ZIP: {e}")
+                return None, None
 
-    tokenizer = AutoTokenizer.from_pretrained(os.path.join(EXTRACT_PATH, "tokenizer_distilbert"))
-    model = load_model(os.path.join(EXTRACT_PATH, "model.keras"))
+    try:
+        tokenizer = AutoTokenizer.from_pretrained(os.path.join(EXTRACT_PATH, "tokenizer_distilbert"), local_files_only=True)
+        model = load_model(os.path.join(EXTRACT_PATH, "model.keras"))
+        st.success("✅ Model and tokenizer loaded successfully!")
+    except Exception as e:
+        st.error(f"❌ Error loading tokenizer/model: {e}")
+        return None, None
+
     return tokenizer, model
 
 tokenizer, sentiment_model = download_and_load_assets()
