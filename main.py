@@ -4,11 +4,20 @@ from transformers import DistilBertTokenizer, TFDistilBertModel
 import pandas as pd
 import streamlit as st
 import os
+import gdown
 from PIL import Image
 from sklearn.preprocessing import MinMaxScaler
 import numpy as np
 from datetime import datetime
 from textblob import TextBlob
+
+
+MODEL_PATH = "t5_model.keras"
+
+if not os.path.exists(MODEL_PATH):
+    with st.spinner("📦 Downloading model from Google Drive... please wait..."):
+        url = "https://drive.google.com/uc?id=17MCaqROy6CEyLY8XdjEGFLPuwGL0VbN3"
+        gdown.download(url, MODEL_PATH, quiet=False)
 
 # ========= CONFIG =========
 MAX_LEN = 100
