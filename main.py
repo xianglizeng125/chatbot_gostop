@@ -1,6 +1,7 @@
 import tensorflow as tf
 import transformers
 from transformers import DistilBertTokenizer, TFDistilBertModel
+import requests
 import pandas as pd
 import streamlit as st
 import os
@@ -97,13 +98,30 @@ menu_stats = load_data()
 if menu_stats is None:
     st.stop()
 
+# URL to the tokenizer and model files
+tokenizer_url = "https://raw.githubusercontent.com/xianglizeng125/chatbot_gostop/main/vocab.txt"
+model_url = "https://raw.githubusercontent.com/xianglizeng125/chatbot_gostop/main/distilbert_cnn_blstm_model.keras"
+
+# Download tokenizer file
+tokenizer_file = requests.get(tokenizer_url)
+with open('vocab.txt', 'wb') as f:
+    f.write(tokenizer_file.content)
+
+# Download model file
+model_file = requests.get(model_url)
+with open('distilbert_cnn_blstm_model.keras', 'wb') as f:
+    f.write(model_file.content)
 @st.cache_resource
 def load_bert_model_and_tokenizer():
     from tensorflow.keras.layers import Input, Conv1D, MaxPooling1D, Bidirectional, LSTM, Dropout, Dense
     from tensorflow.keras.models import Model
 
-    tokenizer = DistilBertTokenizer.from_pretrained("distilbert-base-uncased")
-    bert = TFDistilBertModel.from_pretrained("distilbert-base-uncased")
+    # load the tokenizer and model directly from a GitHub URL
+    # Load tokenizer from local file
+    tokenizer = DistilBertTokenizer.from_pretrained('vocab.txt')
+    
+    # Make model non-trainable if needed
+    bert_model.trainable = False
     bert.trainable = False
 
     bert_out_input = Input(shape=(MAX_LEN, 768), name="bert_output")
