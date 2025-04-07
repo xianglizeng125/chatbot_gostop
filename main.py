@@ -111,8 +111,8 @@ def load_bert_model_and_tokenizer():
     from tensorflow.keras.layers import Input, Conv1D, MaxPooling1D, Bidirectional, LSTM, Dropout, Dense
     from tensorflow.keras.models import Model
 
-    tokenizer = DistilBertTokenizer.from_pretrained('vocab.txt')  # Local file for tokenizer
-    bert = TFDistilBertModel.from_pretrained('vocab.txt')  # Local file for the model
+    tokenizer = DistilBertTokenizer.from_pretrained("distilbert-base-uncased")
+    bert = TFDistilBertModel.from_pretrained("distilbert-base-uncased")
     bert.trainable = False
 
     bert_out_input = Input(shape=(MAX_LEN, 768), name="bert_output")
