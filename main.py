@@ -33,11 +33,12 @@ if not os.path.exists(TOKENIZER_PATH):
     with st.spinner("📦 Downloading tokenizer files from Google Drive..."):
         os.makedirs(TOKENIZER_PATH, exist_ok=True)
         urls = {
-            "vocab.txt": "https://drive.google.com/uc?id=13bC7_29Vy7lJJ7NaO5uuRw4QaI9sE9Nl",
-            "config.json": "https://drive.google.com/uc?id=1rVyhwe_au-yUPo7Fq7rcYwqPd7X5zzZB",
-            "tokenizer_config.json": "https://drive.google.com/uc?id=1l5shBszGOPZXPwvESCU7zq9O-3DTIozj",
-            "special_tokens_map.json": "https://drive.google.com/uc?id=1pio78X3HAoEG9ejBGrs8fzbr2PorrZeK"
+        "vocab.txt": "https://drive.google.com/uc?id=1VZcfhSxRxLTDyubONT733CLcZAg1oMK8",
+        "config.json": "https://drive.google.com/uc?id=1QhCJwxkoqP4ooBjhJvFG2Ryokx9A-nvG",
+        "tokenizer_config.json": "https://drive.google.com/uc?id=194U6dTZQQfkFLspPkT9Lt7iQlDlyerSr",
+        "special_tokens_map.json": "https://drive.google.com/uc?id=1RCvAL5VXNuN1bYSkv8VrT80WPtZQ-k2u"
         }
+
 
         for fname, url in urls.items():
             dest = os.path.join(TOKENIZER_PATH, fname)
