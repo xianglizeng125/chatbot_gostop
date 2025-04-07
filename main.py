@@ -1,19 +1,19 @@
-import streamlit as st
-import pandas as pd
-import numpy as np
 import os
 import zipfile
 import gdown
+import pandas as pd
+import numpy as np
+import streamlit as st
 from PIL import Image
+from textblob import TextBlob
+from sklearn.preprocessing import MinMaxScaler
 from transformers import AutoTokenizer
 from tensorflow.keras.models import load_model
-from sklearn.preprocessing import MinMaxScaler
-from textblob import TextBlob
 
 # ====== CONFIG ======
 st.set_page_config(page_title="GoStop BBQ Recommender", layout="centered")
 MAX_LEN = 100
-GOOGLE_DRIVE_ZIP_ID = "1EArOWduuPVtmE40PJ89X2Lhbs1Actl4n"
+GOOGLE_DRIVE_ZIP_ID = "1VYpTx-hS0V-MXS0Qwox-XFWwbQnD2aNR"  # ← ZIP terbaru kamu
 ZIP_PATH = "nlp_assets.zip"
 EXTRACT_PATH = "nlp_assets"
 
@@ -125,10 +125,7 @@ def detect_negative_rule(text):
 
 def is_category_only_input(text):
     words = text.lower().split()
-    for word in words:
-        if word not in keyword_aliases:
-            return False
-    return True
+    return all(word in keyword_aliases for word in words)
 
 def predict_sentiment(text):
     inputs = tokenizer(text, return_tensors="tf", truncation=True, padding="max_length", max_length=MAX_LEN)
@@ -192,7 +189,6 @@ if submitted and user_input:
         else:
             top = suggestions.sort_values("score", ascending=False).iloc[0]
             response = f"🍽️ How about trying **{top['menu']}**?"
-
     else:
         if is_negative:
             response = "Got it! You don't like that. Let me think of something else next time."
@@ -202,8 +198,6 @@ if submitted and user_input:
 
     st.session_state.chat_history.append(("Bot", response))
 
+# ====== DISPLAY CHAT ======
 for sender, message in st.session_state.chat_history:
-    if sender == "You":
-        st.markdown(f"**You:** {message}")
-    else:
-        st.markdown(f"**Bot:** {message}")
+    st.markdown(f"**{sender}:** {message}")
