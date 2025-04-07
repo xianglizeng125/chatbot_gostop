@@ -76,6 +76,13 @@ menu_categories = {
     "tofu_based": ["tofu jjigae", "soondubu jjigae", "beef soondubu jjigae", "pork soondubu jjigae"]
 }
 
+menu_aliases = {
+    "suundobu jjigae": "soondubu jjigae",  # contoh salah ketik
+    "sunndubu jjigae": "soondubu jjigae",
+    "bulgoki": "bulgogi",
+    "odang": "odeng"
+}
+
 # ========= LOADERS =========
 @st.cache_data
 def load_data():
