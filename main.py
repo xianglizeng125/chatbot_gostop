@@ -33,10 +33,10 @@ if not os.path.exists(TOKENIZER_PATH):
     with st.spinner("📦 Downloading tokenizer files from Google Drive..."):
         os.makedirs(TOKENIZER_PATH, exist_ok=True)
         urls = {
-        "vocab.txt": "https://drive.google.com/uc?id=1VZcfhSxRxLTDyubONT733CLcZAg1oMK8",
-        "config.json": "https://drive.google.com/uc?id=1QhCJwxkoqP4ooBjhJvFG2Ryokx9A-nvG",
-        "tokenizer_config.json": "https://drive.google.com/uc?id=194U6dTZQQfkFLspPkT9Lt7iQlDlyerSr",
-        "special_tokens_map.json": "https://drive.google.com/uc?id=1RCvAL5VXNuN1bYSkv8VrT80WPtZQ-k2u"
+            "vocab.txt": "https://drive.google.com/uc?id=1VZcfhSxRxLTDyubONT733CLcZAg1oMK8",
+            "config.json": "https://drive.google.com/uc?id=1QhCJwxkoqP4ooBjhJvFG2Ryokx9A-nvG",
+            "tokenizer_config.json": "https://drive.google.com/uc?id=194U6dTZQQfkFLspPkT9Lt7iQlDlyerSr",
+            "special_tokens_map.json": "https://drive.google.com/uc?id=1RCvAL5VXNuN1bYSkv8VrT80WPtZQ-k2u"
         }
 
         for fname, url in urls.items():
@@ -79,7 +79,17 @@ def load_data():
         return None
     df = pd.read_csv("review_sentiment.csv")
     df = df[df["sentiment"] == "positive"]
-    df["menu"] = df["menu"].str.lower().replace(menu_aliases)
+
+    # Apply alias corrections to 'menu' column using menu_aliases dictionary
+    def correct_menu_name(menu_name):
+        # Loop through the menu_aliases and replace the names based on the alias mapping
+        for key, value in menu_aliases.items():
+            if key in menu_name:
+                menu_name = menu_name.replace(key, value)
+        return menu_name
+
+    # Apply the function to the 'menu' column
+    df["menu"] = df["menu"].str.lower().apply(correct_menu_name)
 
     menu_stats = df.groupby("menu").agg(
         count=("menu", "count"),
