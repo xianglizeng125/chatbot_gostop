@@ -11,12 +11,24 @@ import numpy as np
 from datetime import datetime
 from textblob import TextBlob
 
+# Ganti path model sesuai dengan Google Drive
 MODEL_PATH = "t5_model.keras"
+CNN_BLSTM_MODEL_PATH = "distilbert_cnn_blstm_model.keras"
+TOKENIZER_PATH = "distilbert_model/tokenizer"
 
+# Jika model belum ada, unduh dari Google Drive
 if not os.path.exists(MODEL_PATH):
     with st.spinner("📦 Downloading model from Google Drive... please wait..."):
-        url = "https://drive.google.com/uc?id=17MCaqROy6CEyLY8XdjEGFLPuwGL0VbN3"
-        gdown.download(url, MODEL_PATH, quiet=False)
+        model_url = "https://drive.google.com/uc?id=17MCaqROy6CEyLY8XdjEGFLPuwGL0VbN3"
+        gdown.download(model_url, MODEL_PATH, quiet=False)
+
+# Jika file tokenizer belum ada, unduh dari Google Drive
+if not os.path.exists(TOKENIZER_PATH):
+    with st.spinner("📦 Downloading tokenizer from Google Drive... please wait..."):
+        config_url = "https://drive.google.com/uc?id=1rVyhwe_au-yUPo7Fq7rcYwqPd7X5zzZB"
+        vocab_url = "https://drive.google.com/uc?id=13bC7_29Vy7lJJ7NaO5uuRw4QaI9sE9Nl"
+        gdown.download(config_url, os.path.join(TOKENIZER_PATH, 'config.json'), quiet=False)
+        gdown.download(vocab_url, os.path.join(TOKENIZER_PATH, 'vocab.txt'), quiet=False)
 
 # ========= CONFIG =========
 MAX_LEN = 100
@@ -55,25 +67,6 @@ menu_categories = {
     "tofu_based": ["tofu jjigae", "soondubu jjigae", "beef soondubu jjigae", "pork soondubu jjigae"]
 }
 
-keyword_aliases = {
-    "non spicy": "non_spicy", "non-spicy": "non_spicy", "not spicy": "non_spicy", "mild": "non_spicy",
-    "grill": "bbq", "barbecue": "bbq", "bbq": "bbq",
-    "hot soup": "soup", "warm soup": "soup",
-    "hot": "spicy", "spicy": "spicy",
-    "soup": "soup", "broth": "soup", "jjigae": "soup",
-    "fish": "seafood", "prawn": "seafood", "seafood": "seafood",
-    "beef": "beef", "pork": "pork", "meat": "meat",
-    "tofu": "tofu_based"
-}
-
-menu_aliases = {
-    "soondubu": "soondubu jjigae",
-    "suundobu": "soondubu jjigae",
-    "beef soondubu": "beef soondubu jjigae",
-    "pork soondubu": "pork soondubu jjigae",
-    "soondubu jigae": "soondubu jjigae"
-}
-
 # ========= LOADERS =========
 @st.cache_data
 def load_data():
@@ -110,7 +103,8 @@ def load_bert_model_and_tokenizer():
     from tensorflow.keras.layers import Input, Conv1D, MaxPooling1D, Bidirectional, LSTM, Dropout, Dense
     from tensorflow.keras.models import Model
 
-    tokenizer = DistilBertTokenizer.from_pretrained("distilbert-base-uncased")
+    # Muat tokenizer dan model menggunakan file yang ada di folder lokal
+    tokenizer = DistilBertTokenizer.from_pretrained(TOKENIZER_PATH)
     bert = TFDistilBertModel.from_pretrained("distilbert-base-uncased")
     bert.trainable = False
 
@@ -122,7 +116,10 @@ def load_bert_model_and_tokenizer():
     output = Dense(1, activation='sigmoid')(x)
 
     sentiment_model = Model(inputs=bert_out_input, outputs=output)
-    sentiment_model.load_weights("distilbert_cnn_blstm_model.keras")  # Local file for the model weights
+
+    # Muat bobot model CNN-BLSTM
+    if os.path.exists(CNN_BLSTM_MODEL_PATH):
+        sentiment_model.load_weights(CNN_BLSTM_MODEL_PATH)
 
     return tokenizer, bert, sentiment_model
 
@@ -143,35 +140,6 @@ def predict_sentiment(text, tokenizer, bert_model, sentiment_model, max_len=MAX_
     return int(preds[0][0] > 0.5)
 
 tokenizer, bert_model, bert_sentiment_model = load_bert_model_and_tokenizer()
-
-# ========= UTILS =========
-def correct_spelling(text):
-    return str(TextBlob(text).correct())
-
-def detect_category(text):
-    text = text.lower()
-    for keyword, category in keyword_aliases.items():
-        if keyword in text:
-            return category
-    return None
-
-def fuzzy_match_menu(text, menu_list):
-    text = text.lower()
-    for menu in menu_list:
-        if all(word in text for word in menu.split()):
-            return menu
-    return None
-
-def detect_negative_rule(text):
-    negative_keywords = ["don't", "not", "dislike", "too", "hate", "worst", "bad"]
-    return any(neg in text for neg in negative_keywords)
-
-def is_category_only_input(text):
-    words = text.lower().split()
-    for word in words:
-        if word not in keyword_aliases:
-            return False
-    return True
 
 # ========= CHAT =========
 if "chat_history" not in st.session_state:
