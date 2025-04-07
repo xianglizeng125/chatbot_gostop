@@ -32,15 +32,20 @@ if not os.path.exists(TOKENIZER_PATH):
             "tokenizer_config.json": "https://drive.google.com/uc?id=1l5shBszGOPZXPwvESCU7zq9O-3DTIozj",
             "special_tokens_map.json": "https://drive.google.com/uc?id=1pio78X3HAoEG9ejBGrs8fzbr2PorrZeK"
         }
+
         for fname, url in urls.items():
             dest = os.path.join(TOKENIZER_PATH, fname)
             gdown.download(url, dest, quiet=False)
-            try:
-                with open(dest, "r", encoding="utf-8") as f:
-                    json.load(f)
-            except Exception as e:
-                st.error(f"❌ File {fname} rusak: {e}")
-                st.stop()
+
+            # ✅ Cek format hanya untuk file JSON
+            if fname.endswith(".json"):
+                try:
+                    with open(dest, "r", encoding="utf-8") as f:
+                        json.load(f)
+                except Exception as e:
+                    st.error(f"❌ File {fname} rusak: {e}")
+                    st.stop()
+
 
 # ========= CONFIG =========
 MAX_LEN = 100
@@ -60,6 +65,29 @@ menu_actual = [
     "bulgogi", "dak bulgogi", "spicy dak bulgogi", "meltique tenderloin", "odeng",
     "beef soondubu jjigae", "pork soondubu jjigae"
 ]
+
+menu_categories = {
+    "spicy": ["spicy samgyeopsal", "spicy woo samgyup", "spicy dak bulgogi", "kimchi jjigae", "budae jjigae"],
+    "meat": ["samgyeopsal", "woo samgyup", "bulgogi", "dak bulgogi", "saeng galbi", "meltique tenderloin"],
+    "soup": ["kimchi jjigae", "tofu jjigae", "budae jjigae", "soondubu jjigae", "beef soondubu jjigae", "pork soondubu jjigae", "prawn soondubu jjigae"],
+    "seafood": ["prawn soondubu jjigae", "odeng"],
+    "beef": ["bulgogi", "beef soondubu jjigae", "meltique tenderloin"],
+    "pork": ["samgyeopsal", "spicy samgyeopsal", "pork soondubu jjigae"],
+    "bbq": ["samgyeopsal", "woo samgyup", "bulgogi"],
+    "non_spicy": ["tofu jjigae", "soondubu jjigae", "beef soondubu jjigae", "meltique tenderloin", "odeng"],
+    "tofu_based": ["tofu jjigae", "soondubu jjigae", "beef soondubu jjigae", "pork soondubu jjigae"]
+}
+
+keyword_aliases = {
+    "non spicy": "non_spicy", "non-spicy": "non_spicy", "not spicy": "non_spicy", "mild": "non_spicy",
+    "grill": "bbq", "barbecue": "bbq", "bbq": "bbq",
+    "hot soup": "soup", "warm soup": "soup",
+    "hot": "spicy", "spicy": "spicy",
+    "soup": "soup", "broth": "soup", "jjigae": "soup",
+    "fish": "seafood", "prawn": "seafood", "seafood": "seafood",
+    "beef": "beef", "pork": "pork", "meat": "meat",
+    "tofu": "tofu_based"
+}
 
 menu_aliases = {
     "soondubu": "soondubu jjigae",
