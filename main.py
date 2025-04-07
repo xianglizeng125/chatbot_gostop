@@ -1,26 +1,39 @@
-import tensorflow as tf
-from tensorflow.keras.models import load_model
-from transformers import DistilBertTokenizer
-import pandas as pd
 import streamlit as st
+import pandas as pd
+import numpy as np
 import os
+import zipfile
 import gdown
 from PIL import Image
+from transformers import AutoTokenizer
+from tensorflow.keras.models import load_model
 from sklearn.preprocessing import MinMaxScaler
-import numpy as np
 from textblob import TextBlob
-import json
 
-# ========= STREAMLIT CONFIG =========
+# ====== CONFIG ======
 st.set_page_config(page_title="GoStop BBQ Recommender", layout="centered")
-
-# ========= PATH SETUP =========
-CNN_BLSTM_MODEL_PATH = "distilbert_cnn_blstm_model.keras"
-TOKENIZER_PATH = "distilbert_model/tokenizer"
-# ========= CONFIG =========
 MAX_LEN = 100
+GOOGLE_DRIVE_ZIP_ID = "1EArOWduuPVtmE40PJ89X2Lhbs1Actl4n"
+ZIP_PATH = "nlp_assets.zip"
+EXTRACT_PATH = "nlp_assets"
 
-# ========= SIDEBAR =========
+# ====== DOWNLOAD & LOAD MODEL/TOKENIZER ======
+@st.cache_resource
+def download_and_load_assets():
+    if not os.path.exists(EXTRACT_PATH):
+        with st.spinner("📥 Downloading model & tokenizer..."):
+            url = f"https://drive.google.com/uc?id={GOOGLE_DRIVE_ZIP_ID}"
+            gdown.download(url, ZIP_PATH, quiet=False)
+            with zipfile.ZipFile(ZIP_PATH, "r") as zip_ref:
+                zip_ref.extractall(EXTRACT_PATH)
+
+    tokenizer = AutoTokenizer.from_pretrained(os.path.join(EXTRACT_PATH, "tokenizer_distilbert"))
+    model = load_model(os.path.join(EXTRACT_PATH, "model.keras"))
+    return tokenizer, model
+
+tokenizer, sentiment_model = download_and_load_assets()
+
+# ====== SIDEBAR ======
 with st.sidebar:
     if os.path.exists("gostop.jpeg"):
         st.image(Image.open("gostop.jpeg"), use_container_width=True)
@@ -28,36 +41,26 @@ with st.sidebar:
         st.session_state.chat_history = []
         st.rerun()
 
-# ========= DOWNLOAD SECTION =========
-if not os.path.exists(TOKENIZER_PATH):
-    with st.spinner("📦 Downloading tokenizer files from Google Drive..."):
-        os.makedirs(TOKENIZER_PATH, exist_ok=True)
-        urls = {
-            "vocab.txt": "https://drive.google.com/uc?id=1VZcfhSxRxLTDyubONT733CLcZAg1oMK8",
-            "config.json": "https://drive.google.com/uc?id=1QhCJwxkoqP4ooBjhJvFG2Ryokx9A-nvG",
-            "tokenizer_config.json": "https://drive.google.com/uc?id=194U6dTZQQfkFLspPkT9Lt7iQlDlyerSr",
-            "special_tokens_map.json": "https://drive.google.com/uc?id=1RCvAL5VXNuN1bYSkv8VrT80WPtZQ-k2u"
-        }
-
-        for fname, url in urls.items():
-            dest = os.path.join(TOKENIZER_PATH, fname)
-            gdown.download(url, dest, quiet=False)
-
-            if fname.endswith(".json"):
-                try:
-                    with open(dest, "r", encoding="utf-8") as f:
-                        json.load(f)
-                except Exception as e:
-                    st.error(f"❌ File {fname} rusak: {e}")
-                    st.stop()
-
-# ========= MENU DATA =========
+# ====== MENU & ALIASES ======
 menu_actual = [
     "soondubu jjigae", "prawn soondubu jjigae", "kimchi jjigae", "tofu jjigae",
     "samgyeopsal", "spicy samgyeopsal", "woo samgyup", "spicy woo samgyup",
     "bulgogi", "dak bulgogi", "spicy dak bulgogi", "meltique tenderloin", "odeng",
     "beef soondubu jjigae", "pork soondubu jjigae"
 ]
+
+menu_aliases = {
+    "soondubu": "soondubu jjigae",
+    "suundobu": "soondubu jjigae",
+    "beef soondubu": "beef soondubu jjigae",
+    "pork soondubu": "pork soondubu jjigae",
+    "soondubu jigae": "soondubu jjigae"
+}
+
+keyword_aliases = {
+    "spicy": "spicy", "meat": "meat", "soup": "soup", "seafood": "seafood",
+    "beef": "beef", "pork": "pork", "bbq": "bbq", "non-spicy": "non_spicy", "tofu": "tofu_based"
+}
 
 menu_categories = {
     "spicy": ["spicy samgyeopsal", "spicy woo samgyup", "spicy dak bulgogi", "kimchi jjigae", "budae jjigae"],
@@ -71,71 +74,34 @@ menu_categories = {
     "tofu_based": ["tofu jjigae", "soondubu jjigae", "beef soondubu jjigae", "pork soondubu jjigae"]
 }
 
-menu_aliases = {
-    "soondubu": "soondubu jjigae",
-    "suundobu": "soondubu jjigae",
-    "beef soondubu": "beef soondubu jjigae",
-    "pork soondubu": "pork soondubu jjigae",
-    "soondubu jigae": "soondubu jjigae"
-}
-
-# ========= LOADERS =========
+# ====== DATA LOADER ======
 @st.cache_data
 def load_data():
     if not os.path.exists("review_sentiment.csv"):
         st.error("❌ 'review_sentiment.csv' not found.")
         return None
-    try:
-        df = pd.read_csv("review_sentiment.csv")
-        
-        # Mengganti menu yang salah ketik sesuai dengan aliases yang ada
-        df["menu"] = df["menu"].str.lower().replace(menu_aliases)
 
-        # Menyaring review dengan sentiment positif
-        df = df[df["sentiment"] == "positive"]
+    df = pd.read_csv("review_sentiment.csv")
+    df["menu"] = df["menu"].str.lower().replace(menu_aliases)
+    df = df[df["sentiment"] == "positive"]
 
-        # Menghitung statistik menu
-        menu_stats = df.groupby("menu").agg(
-            count=("menu", "count"),
-            avg_sentiment=("compound_score", "mean")
-        ).reset_index()
+    menu_stats = df.groupby("menu").agg(
+        count=("menu", "count"),
+        avg_sentiment=("compound_score", "mean")
+    ).reset_index()
 
-        # Normalisasi dan perhitungan skor menu
-        scaler = MinMaxScaler()
-        menu_stats[["count_norm", "sentiment_norm"]] = scaler.fit_transform(
-            menu_stats[["count", "avg_sentiment"]]
-        )
-        menu_stats["score"] = (menu_stats["count_norm"] + menu_stats["sentiment_norm"]) / 2
-        
-        return menu_stats
-    except Exception as e:
-        st.error(f"❌ Error loading data: {e}")
-        return None
+    scaler = MinMaxScaler()
+    menu_stats[["count_norm", "sentiment_norm"]] = scaler.fit_transform(
+        menu_stats[["count", "avg_sentiment"]]
+    )
+    menu_stats["score"] = (menu_stats["count_norm"] + menu_stats["sentiment_norm"]) / 2
+    return menu_stats
 
 menu_stats = load_data()
 if menu_stats is None:
     st.stop()
 
-# ========= MODEL LOADER =========
-@st.cache_resource
-def load_model_and_tokenizer():
-    # Memuat model CNN-BLSTM yang sudah dilatih
-    sentiment_model = load_model(CNN_BLSTM_MODEL_PATH)
-    
-    return sentiment_model
-
-# Load model
-sentiment_model = load_model_and_tokenizer()
-
-st.success("✅ All models and tokenizer loaded successfully!")
-
-# ========= PREDICTION =========
-def predict_sentiment(text, sentiment_model):
-    inputs = tokenizer(text, return_tensors="tf", truncation=True, padding="max_length", max_length=MAX_LEN)
-    preds = sentiment_model.predict(inputs['input_ids'], verbose=0)
-    return int(preds[0][0] > 0.5)
-
-# ========= UTILS =========
+# ====== UTILS ======
 def correct_spelling(text):
     return str(TextBlob(text).correct())
 
@@ -164,7 +130,12 @@ def is_category_only_input(text):
             return False
     return True
 
-# ========= CHAT =========
+def predict_sentiment(text):
+    inputs = tokenizer(text, return_tensors="tf", truncation=True, padding="max_length", max_length=MAX_LEN)
+    preds = sentiment_model.predict(inputs['input_ids'], verbose=0)
+    return int(preds[0][0] > 0.5)
+
+# ====== CHATBOT UI ======
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 
@@ -192,15 +163,47 @@ if submitted and user_input:
     elif matched_menu and explicit_negative:
         is_negative = True
     elif matched_menu:
-        sentiment_pred = predict_sentiment(corrected_input, sentiment_model)
+        sentiment_pred = predict_sentiment(corrected_input)
         is_negative = sentiment_pred == 0
     elif category and not explicit_negative and is_category_input:
         is_negative = False
     elif category and explicit_negative:
         is_negative = True
     else:
-        sentiment_pred = predict_sentiment(corrected_input, sentiment_model)
+        sentiment_pred = predict_sentiment(corrected_input)
         is_negative = sentiment_pred == 0
 
-    show_mood = any(word in raw_input for word in ["love", "like", "want", "enjoy"]) and not is_negative
-    sentiment_note = "😊 Awesome! You're
+    st.session_state.chat_history.append(("You", user_input))
+
+    if matched_menu:
+        if is_negative:
+            response = f"❌ Oh no! Sounds like you don't like **{matched_menu}**. Let's try something else?"
+        else:
+            response = f"✅ Great! **{matched_menu}** is a tasty choice!"
+    elif category:
+        suggestions = menu_stats[menu_stats["menu"].isin(menu_actual)].copy()
+        if is_negative:
+            suggestions = suggestions[~suggestions["menu"].isin(menu_categories.get(category, []))]
+        else:
+            suggestions = suggestions[suggestions["menu"].isin(menu_categories.get(category, []))]
+
+        if suggestions.empty:
+            response = "🙁 Sorry, I couldn't find any matching menu!"
+        else:
+            top = suggestions.sort_values("score", ascending=False).iloc[0]
+            response = f"🍽️ How about trying **{top['menu']}**?"
+
+    else:
+        if is_negative:
+            response = "Got it! You don't like that. Let me think of something else next time."
+        else:
+            top = menu_stats.sort_values("score", ascending=False).iloc[0]
+            response = f"🤔 Not sure what you meant, but maybe try **{top['menu']}**?"
+
+    st.session_state.chat_history.append(("Bot", response))
+
+for sender, message in st.session_state.chat_history:
+    if sender == "You":
+        st.markdown(f"**You:** {message}")
+    else:
+        st.markdown(f"**Bot:** {message}")
