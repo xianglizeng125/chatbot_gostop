@@ -1,10 +1,9 @@
 streamlit
 pandas
-transformers
-scikit-learn
 numpy
-Pillow
+scikit-learn
 tensorflow==2.19.0
 transformers==4.36.2
 gdown
 textblob
+Pillow
