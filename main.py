@@ -1,5 +1,6 @@
 import tensorflow as tf
-from transformers import DistilBertTokenizer, TFDistilBertModel
+from tensorflow.keras.models import load_model
+from transformers import DistilBertTokenizer
 import pandas as pd
 import streamlit as st
 import os
@@ -38,7 +39,6 @@ if not os.path.exists(TOKENIZER_PATH):
         "special_tokens_map.json": "https://drive.google.com/uc?id=1RCvAL5VXNuN1bYSkv8VrT80WPtZQ-k2u"
         }
 
-
         for fname, url in urls.items():
             dest = os.path.join(TOKENIZER_PATH, fname)
             gdown.download(url, dest, quiet=False)
@@ -50,7 +50,6 @@ if not os.path.exists(TOKENIZER_PATH):
                 except Exception as e:
                     st.error(f"❌ File {fname} rusak: {e}")
                     st.stop()
-
 
 # ========= MENU DATA =========
 menu_actual = [
@@ -70,27 +69,6 @@ menu_categories = {
     "bbq": ["samgyeopsal", "woo samgyup", "bulgogi"],
     "non_spicy": ["tofu jjigae", "soondubu jjigae", "beef soondubu jjigae", "meltique tenderloin", "odeng"],
     "tofu_based": ["tofu jjigae", "soondubu jjigae", "beef soondubu jjigae", "pork soondubu jjigae"]
-}
-
-keyword_aliases = {
-    "non spicy": "non_spicy", "non-spicy": "non_spicy", "not spicy": "non_spicy", "mild": "non_spicy",
-    "grill": "bbq", "barbecue": "bbq", "bbq": "bbq",
-    "hot soup": "soup", "warm soup": "soup",
-    "hot": "spicy", "spicy": "spicy",
-    "soup": "soup", "broth": "soup", "jjigae": "soup",
-    "fish": "seafood", "prawn": "seafood", "seafood": "seafood",
-    "beef": "beef", "pork": "pork", "meat": "meat",
-    "tofu": "tofu_based"
-}
-
-menu_aliases = {
-    "soondubu": "soondubu jjigae",
-    "soondubu jigae": "soondubu jjigae",
-    "suundobu jjigae": "soondubu jjigae",
-    "beef soondubu": "beef soondubu jjigae",
-    "pork soondubu": "pork soondubu jjigae",
-    "bulgoki": "bulgogi",
-    "odang": "odeng"
 }
 
 # ========= DATA LOADING =========
@@ -126,41 +104,26 @@ if menu_stats is None:
 
 # ========= MODEL LOADER =========
 @st.cache_resource
-def load_bert_model_and_tokenizer():
-    from tensorflow.keras.layers import Input, Conv1D, MaxPooling1D, Bidirectional, LSTM, Dropout, Dense
-    from tensorflow.keras.models import Model
-
+def load_model_and_tokenizer():
+    # Memuat tokenizer
     tokenizer = DistilBertTokenizer.from_pretrained(TOKENIZER_PATH)
-    bert = TFDistilBertModel.from_pretrained(TOKENIZER_PATH, from_pt=False)
+    
+    # Memuat model CNN-BLSTM yang sudah dilatih
+    sentiment_model = load_model(CNN_BLSTM_MODEL_PATH)
+    
+    return tokenizer, sentiment_model
 
-    bert.trainable = False
-
-    bert_out_input = Input(shape=(MAX_LEN, 768), name="bert_output")
-    x = Conv1D(128, kernel_size=5, activation='relu')(bert_out_input)
-    x = MaxPooling1D(pool_size=2)(x)
-    x = Bidirectional(LSTM(64, dropout=0.2, return_sequences=False))(x)
-    x = Dropout(0.3)(x)
-    output = Dense(1, activation='sigmoid')(x)
-
-    sentiment_model = Model(inputs=bert_out_input, outputs=output)
-
-    if os.path.exists(CNN_BLSTM_MODEL_PATH):
-        sentiment_model.load_weights(CNN_BLSTM_MODEL_PATH)
-
-    return tokenizer, bert, sentiment_model
-
-# ========= PREDICTION =========
-def predict_sentiment(text, tokenizer, bert_model, sentiment_model):
-    inputs = tokenizer(text, return_tensors="tf", truncation=True, padding="max_length", max_length=MAX_LEN)
-    bert_output = bert_model(input_ids=inputs["input_ids"], attention_mask=inputs["attention_mask"]).last_hidden_state
-    preds = sentiment_model.predict(bert_output, verbose=0)
-    return int(preds[0][0] > 0.5)
-
-# Load model and tokenizer
-tokenizer, bert_model, bert_sentiment_model = load_bert_model_and_tokenizer()
+# Load model dan tokenizer
+tokenizer, sentiment_model = load_model_and_tokenizer()
 
 st.success("✅ All models and tokenizer loaded successfully!")
 
+
+# ========= PREDICTION =========
+def predict_sentiment(text, tokenizer, sentiment_model):
+    inputs = tokenizer(text, return_tensors="tf", truncation=True, padding="max_length", max_length=MAX_LEN)
+    preds = sentiment_model.predict(inputs['input_ids'], verbose=0)
+    return int(preds[0][0] > 0.5)
 
 # ========= UTILS =========
 def correct_spelling(text):
@@ -219,14 +182,14 @@ if submitted and user_input:
     elif matched_menu and explicit_negative:
         is_negative = True
     elif matched_menu:
-        sentiment_pred = predict_sentiment(corrected_input, tokenizer, bert_model, bert_sentiment_model)
+        sentiment_pred = predict_sentiment(corrected_input, tokenizer, sentiment_model)
         is_negative = sentiment_pred == 0
     elif category and not explicit_negative and is_category_input:
         is_negative = False
     elif category and explicit_negative:
         is_negative = True
     else:
-        sentiment_pred = predict_sentiment(corrected_input, tokenizer, bert_model, bert_sentiment_model)
+        sentiment_pred = predict_sentiment(corrected_input, tokenizer, sentiment_model)
         is_negative = sentiment_pred == 0
 
     show_mood = any(word in raw_input for word in ["love", "like", "want", "enjoy"]) and not is_negative
