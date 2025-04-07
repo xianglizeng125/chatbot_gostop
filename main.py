@@ -11,6 +11,9 @@ import numpy as np
 from datetime import datetime
 from textblob import TextBlob
 
+# ========= STREAMLIT CONFIG =========
+st.set_page_config(page_title="GoStop BBQ Recommender", layout="centered")
+
 # Ganti path model sesuai dengan Google Drive
 MODEL_PATH = "t5_model.keras"
 CNN_BLSTM_MODEL_PATH = "distilbert_cnn_blstm_model.keras"
@@ -40,8 +43,7 @@ if not os.path.exists(TOKENIZER_PATH):
 # ========= CONFIG =========
 MAX_LEN = 100
 
-# ========= STREAMLIT CONFIG =========
-st.set_page_config(page_title="GoStop BBQ Recommender", layout="centered")
+
 
 with st.sidebar:
     if os.path.exists("gostop.jpeg"):
