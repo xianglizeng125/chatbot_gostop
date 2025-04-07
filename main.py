@@ -77,6 +77,16 @@ menu_categories = {
 }
 
 menu_aliases = {
+    "soondubu": "soondubu jjigae",
+    "soondubu jigae": "soondubu jjigae",
+    "suundobu jjigae": "soondubu jjigae",
+    "beef soondubu": "beef soondubu jjigae",
+    "pork soondubu": "pork soondubu jjigae",
+    "bulgoki": "bulgogi",
+    "odang": "odeng"
+}
+
+keyword_aliases = {
     "non spicy": "non_spicy", "non-spicy": "non_spicy", "not spicy": "non_spicy", "mild": "non_spicy",
     "grill": "bbq", "barbecue": "bbq", "bbq": "bbq",
     "hot soup": "soup", "warm soup": "soup",
@@ -86,6 +96,7 @@ menu_aliases = {
     "beef": "beef", "pork": "pork", "meat": "meat",
     "tofu": "tofu_based"
 }
+
 
 # ========= LOADERS =========
 @st.cache_data
