@@ -17,12 +17,18 @@ st.set_page_config(page_title="GoStop BBQ Recommender", layout="centered")
 MODEL_PATH = "t5_model.keras"
 CNN_BLSTM_MODEL_PATH = "distilbert_cnn_blstm_model.keras"
 TOKENIZER_PATH = "distilbert_model/tokenizer"
+# ========= CONFIG =========
+MAX_LEN = 100
+
+# ========= SIDEBAR =========
+with st.sidebar:
+    if os.path.exists("gostop.jpeg"):
+        st.image(Image.open("gostop.jpeg"), use_container_width=True)
+    if st.button("🗑️ Clear Chat"):
+        st.session_state.chat_history = []
+        st.rerun()
 
 # ========= DOWNLOAD SECTION =========
-if not os.path.exists(MODEL_PATH):
-    with st.spinner("📦 Downloading model from Google Drive..."):
-        gdown.download("https://drive.google.com/uc?id=17MCaqROy6CEyLY8XdjEGFLPuwGL0VbN3", MODEL_PATH, quiet=False)
-
 if not os.path.exists(TOKENIZER_PATH):
     with st.spinner("📦 Downloading tokenizer files from Google Drive..."):
         os.makedirs(TOKENIZER_PATH, exist_ok=True)
@@ -37,7 +43,6 @@ if not os.path.exists(TOKENIZER_PATH):
             dest = os.path.join(TOKENIZER_PATH, fname)
             gdown.download(url, dest, quiet=False)
 
-            # ✅ Cek format hanya untuk file JSON
             if fname.endswith(".json"):
                 try:
                     with open(dest, "r", encoding="utf-8") as f:
@@ -46,17 +51,6 @@ if not os.path.exists(TOKENIZER_PATH):
                     st.error(f"❌ File {fname} rusak: {e}")
                     st.stop()
 
-
-# ========= CONFIG =========
-MAX_LEN = 100
-
-# ========= SIDEBAR =========
-with st.sidebar:
-    if os.path.exists("gostop.jpeg"):
-        st.image(Image.open("gostop.jpeg"), use_container_width=True)
-    if st.button("🗑️ Clear Chat"):
-        st.session_state.chat_history = []
-        st.rerun()
 
 # ========= MENU DATA =========
 menu_actual = [
