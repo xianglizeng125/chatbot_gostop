@@ -77,10 +77,14 @@ menu_categories = {
 }
 
 menu_aliases = {
-    "suundobu jjigae": "soondubu jjigae",  # contoh salah ketik
-    "sunndubu jjigae": "soondubu jjigae",
-    "bulgoki": "bulgogi",
-    "odang": "odeng"
+    "non spicy": "non_spicy", "non-spicy": "non_spicy", "not spicy": "non_spicy", "mild": "non_spicy",
+    "grill": "bbq", "barbecue": "bbq", "bbq": "bbq",
+    "hot soup": "soup", "warm soup": "soup",
+    "hot": "spicy", "spicy": "spicy",
+    "soup": "soup", "broth": "soup", "jjigae": "soup",
+    "fish": "seafood", "prawn": "seafood", "seafood": "seafood",
+    "beef": "beef", "pork": "pork", "meat": "meat",
+    "tofu": "tofu_based"
 }
 
 # ========= LOADERS =========
@@ -92,8 +96,9 @@ def load_data():
     try:
         df = pd.read_csv("review_sentiment.csv")
         df = df[df["sentiment"] == "positive"]
-        df["menu"] = df["menu"].str.lower().str.replace("suundobu", "soondubu")
+        df["menu"] = df["menu"].str.lower()
         df["menu"] = df["menu"].replace(menu_aliases)
+
 
         menu_stats = df.groupby("menu").agg(
             count=("menu", "count"),
